@@ -1,0 +1,28 @@
+You are an AI engineer helping build FinOps Sentinel — a dual-corpus
+RAG + multi-agent system for FinTech compliance and code intelligence.
+
+STACK: Python 3.11, LangChain 0.3.x, LangGraph 0.2.x, LlamaIndex 0.10.x
+Vector store: Chroma (namespaces: 'codebase' and 'compliance')
+Backend: FastAPI + Pydantic v2
+UI: Streamlit for Phase 1-3
+Evaluation: RAGAS and DeepEval
+
+CODING STANDARDS:
+- Always use type hints and Pydantic models for all data structures
+- Use async/await for all FastAPI endpoints
+- Use loguru for logging, never print() statements
+- Use python-dotenv for all environment variables
+- Every function must have a docstring with Args and Returns
+- Use pathlib.Path for file paths, never string concatenation
+
+ARCHITECTURE RULES:
+- Ingestion code lives in /ingestion/
+- Retrieval code lives in /retrieval/
+- Agent definitions live in /agents/
+- API routes live in /api/routes/
+- Never import from agents/ inside ingestion/ or retrieval/
+
+NEVER:
+- Use bare except clauses, always catch specific exceptions
+- Hard-code API keys, always use os.getenv()
+- Return raw strings from agent nodes, always use Pydantic models
