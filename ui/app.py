@@ -1,6 +1,6 @@
 """
 FinOps Sentinel - Streamlit UI
-Phase 2: Hybrid retrieval + Cohere reranking + stricter prompting
+Phase 3: LangGraph multi-agent system
 """
 
 import sys
@@ -8,21 +8,13 @@ import os
 from pathlib import Path
 
 import streamlit as st
-from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from ingestion.compliance_ingestor import get_chroma_collection
-from retrieval.prompt_templates import (
-    COMPLIANCE_SYSTEM_PROMPT,
-    COMPLIANCE_USER_PROMPT,
-    FALLBACK_RESPONSE,
-    CONFIDENCE_THRESHOLD,
-)
-from retrieval.hybrid_retriever import HybridRetrieverWithRerank
+from agents.graph import get_graph
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -32,27 +24,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── CUSTOM CSS ────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-    .result-card {
-        background: #F5F8FA;
-        border-left: 4px solid #006D77;
-        padding: 1rem 1.2rem;
-        border-radius: 0 8px 8px 0;
-        margin-bottom: 1rem;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# ── LOAD RESOURCES ONCE ───────────────────────────────────────────────────────
+# ── LOAD GRAPH ONCE ───────────────────────────────────────────────────────────
 @st.cache_resource
-def load_resources():
-    collection = get_chroma_collection()
-    retriever = HybridRetrieverWithRerank(collection)
-    return collection, retriever
+def load_agent_graph():
+    return get_graph()
 
-collection, retriever = load_resources()
+graph = load_agent_graph()
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -60,24 +37,25 @@ with st.sidebar:
     st.markdown("*AI Compliance Intelligence*")
     st.divider()
 
-    st.markdown("### Corpus Status")
-    st.metric("Compliance Chunks", collection.count())
-    st.metric("Documents", "PCI-DSS v4.0.1")
+    st.markdown("### System Status")
+    st.success("LangGraph Agent: Active")
+    st.metric("Corpus", "PCI-DSS v4.0.1")
+    st.metric("Chunks", "413")
     st.metric("Retrieval", "Hybrid + Rerank")
-    st.metric("Phase", "2 - Complete")
+    st.metric("Phase", "3 - Multi-Agent")
 
     st.divider()
-    st.markdown("### Settings")
-    n_results = st.slider("Results to retrieve", 1, 10, 5)
-    show_distance = st.toggle("Show distance scores", value=True)
-    show_full_text = st.toggle("Show full chunk text", value=False)
+    st.markdown("### Agent Pipeline")
+    st.markdown("1. QueryClassifier")
+    st.markdown("2. ComplianceMapper")
+    st.markdown("3. FormatResponse")
 
     st.divider()
-    st.markdown("### Phase 2 RAGAS Metrics")
-    st.markdown("Faithfulness: 1.00")
-    st.markdown("Answer Relevancy: 0.88")
-    st.markdown("Context Precision: 0.96")
-    st.markdown("Context Recall: 0.76")
+    st.markdown("### Phase 2 RAGAS Scores")
+    st.markdown("Faithfulness: **1.00** ✅")
+    st.markdown("Answer Relevancy: **0.88** ✅")
+    st.markdown("Context Precision: **0.96** ✅")
+    st.markdown("Context Recall: **0.76** ✅")
 
     st.divider()
     st.markdown("### Sample Queries")
@@ -87,16 +65,17 @@ with st.sidebar:
         "What are the access control requirements?",
         "What logging and monitoring is required?",
         "What are the vulnerability management requirements?",
+        "What does PCI-DSS say about network security?",
     ]
     selected_sample = st.selectbox(
-        "Try a sample query",
+        "Try a sample",
         [""] + sample_queries,
         index=0,
     )
 
 # ── MAIN AREA ─────────────────────────────────────────────────────────────────
 st.title("FinOps Sentinel")
-st.caption("Dual-Corpus AI for Financial Compliance and Code Intelligence - Phase 2")
+st.caption("Dual-Corpus AI for Financial Compliance and Code Intelligence - Phase 3")
 st.divider()
 
 # ── QUERY INPUT ───────────────────────────────────────────────────────────────
@@ -107,7 +86,7 @@ with col1:
     query = st.text_input(
         "Query",
         value=default_query,
-        placeholder="e.g. What are the encryption requirements for cardholder data?",
+        placeholder="e.g. What are the PCI-DSS requirements for cardholder data encryption?",
         label_visibility="collapsed",
     )
 
@@ -117,74 +96,75 @@ with col2:
 # ── RESULTS ───────────────────────────────────────────────────────────────────
 if search_btn and query.strip():
 
-    with st.spinner("Searching with hybrid BM25 + vector + reranking..."):
+    with st.spinner("Running agent pipeline..."):
         try:
-            results = retriever.search(query, n_results=n_results)
+            result = graph.invoke({"query": query})
         except Exception as e:
-            st.error(f"Retrieval failed: {e}")
-            results = []
+            st.error(f"Agent pipeline failed: {e}")
+            result = None
 
-    if results:
+    if result:
 
-        min_distance = min(r["distance"] for r in results)
-
-        if min_distance > CONFIDENCE_THRESHOLD:
-            answer = FALLBACK_RESPONSE
-        else:
-            context = "\n\n---\n\n".join([
-                f"[Source: {r['source']}, Page {r['page']}]\n{r['text']}"
-                for r in results[:5]
-            ])
-
-            user_prompt = COMPLIANCE_USER_PROMPT.format(
-                context=context,
-                question=query,
+        # Routing info
+        col_r1, col_r2, col_r3 = st.columns(3)
+        with col_r1:
+            corpus = result.get("corpus", "unknown").upper()
+            color = (
+                "green" if corpus == "COMPLIANCE"
+                else "blue" if corpus == "CODE"
+                else "orange"
             )
+            st.markdown(f"**Routed to:** :{color}[{corpus}]")
+        with col_r2:
+            confidence = result.get("confidence", 0)
+            st.markdown(f"**Confidence:** {confidence:.0%}")
+        with col_r3:
+            st.markdown(f"**Agents run:** QueryClassifier + ComplianceMapper")
 
-            with st.spinner("Generating answer..."):
-                try:
-                    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                    response = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": COMPLIANCE_SYSTEM_PROMPT,
-                            },
-                            {
-                                "role": "user",
-                                "content": user_prompt,
-                            },
-                        ],
-                        temperature=0.0,
-                        max_tokens=800,
-                    )
-                    answer = (response.choices[0].message.content or "").strip()
-                except Exception as e:
-                    st.error(f"Generation failed: {e}")
-                    answer = (
-                        "The answer could not be generated. "
-                        "See retrieved chunks below."
-                    )
-
-        st.markdown("### Answer")
-        st.markdown(answer)
+        # Routing reason expander
+        with st.expander("Routing decision"):
+            st.caption(result.get("routing_reason", ""))
 
         st.divider()
-        st.markdown("### Retrieved chunks")
-        for i, r in enumerate(results, 1):
-            dist = ""
-            if show_distance and r.get("distance") is not None:
-                dist = f" — distance `{float(r['distance']):.4f}`"
-            label = f"{i}. {r['source']}, Page {r['page']}{dist}"
-            with st.expander(label):
-                text = r["text"]
-                if not show_full_text and len(text) > 600:
-                    text = text[:600] + "…"
-                st.text(text)
 
+        # Final answer
+        st.markdown("### Answer")
+        answer = result.get("final_answer", "No answer generated.")
+        st.info(answer)
+
+        # Source chunks
+        compliance_results = result.get("compliance_results", [])
+        if compliance_results:
+            with st.expander(f"View {len(compliance_results)} source chunks"):
+                for i, r in enumerate(compliance_results):
+                    c1, c2, c3 = st.columns([0.5, 2, 1])
+                    with c1:
+                        st.markdown(f"**#{i+1}**")
+                    with c2:
+                        st.markdown(f"`{r.get('source', 'unknown')}`")
+                    with c3:
+                        st.markdown(f"Page **{r.get('page', '?')}**")
+                    st.caption(r.get("text", "")[:300] + "...")
+                    st.divider()
+
+else:
+    if search_btn:
+        st.warning("Please enter a query first.")
     else:
-        st.info("No matching chunks were retrieved. Try different wording.")
+        st.markdown("### How to use FinOps Sentinel")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.info("Step 1: Type a compliance question")
+        with c2:
+            st.info("Step 2: LangGraph agent classifies and routes")
+        with c3:
+            st.info("Step 3: Hybrid retrieval + LLM analysis")
 
-elif search_btn:
-    st.warning("Please enter a search query.")
+        st.divider()
+        st.markdown("**Phase 3 adds:** LangGraph multi-agent orchestration")
+        st.markdown("**Corpus:** PCI-DSS v4.0.1 - 413 chunks")
+        st.markdown("**Pipeline:** QueryClassifier -> ComplianceMapper -> FormatResponse")
+
+# ── FOOTER ────────────────────────────────────────────────────────────────────
+st.divider()
+st.caption("FinOps Sentinel Phase 3 - LangGraph Multi-Agent - RAGAS Faithfulness 1.0")
