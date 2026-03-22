@@ -84,3 +84,70 @@
 - Compliance corpus: 413 chunks (PCI-DSS v4.0.1)
 - Query working: YES
 - Distance score: 0.8385 (baseline — lower is better)
+
+## Session 003 — 21 March 2026
+
+**Phase:** Phase 2 — Production RAG
+**Branch:** main
+**Duration:** [X hours]
+
+### Work Completed
+- Implemented hybrid BM25 + vector retrieval (hybrid_retriever.py)
+- Added Reciprocal Rank Fusion to merge both result lists
+- Integrated Cohere Rerank v3 (rerank-english-v3.0)
+- Created RAGAS evaluation suite (ragas_eval.py) — 8 test questions
+- Created prompt_templates.py with strict faithfulness prompting
+- Updated Streamlit UI with hybrid retriever + confidence scoring
+- Fixed multiple indentation and encoding issues on Windows
+
+### Phase 2 Final RAGAS Results
+- Faithfulness:       0.7188 -> 1.0000  (+38.9%)
+- Answer Relevancy:   0.6591 -> 0.8773  (+33.1%)
+- Context Precision:  0.8437 -> 0.9599  (+13.8%)
+- Context Recall:     0.7604 -> 0.7604  (maintained)
+
+### Key Finding
+Prompt engineering alone had zero effect on faithfulness.
+The problem was retrieval quality, not generation.
+Hybrid retrieval fixed the root cause.
+
+### Errors Encountered
+- flashrank version mismatch — fixed version in requirements.txt
+- RAGAS returns list not float — fixed with extract_score()
+- cohere not installed — pip install cohere
+- Windows encoding issues with em dash character
+- Streamlit main area blank — removed custom HTML headers
+
+### Decisions Made
+- BM25 candidates: 30, vector candidates: 30, rerank to top 5
+- Cohere rerank-english-v3.0 over FlashRank — better quality
+- st.cache_resource for BM25 index — builds once per session
+
+### Next Session: Phase 3
+- Build LangGraph agent graph
+- QueryClassifier node — routes CODE/COMPLIANCE/HYBRID
+- CodeAnalyzer agent — AST-based code corpus retrieval
+- ComplianceMapper agent — compliance corpus retrieval
+- HybridSynthesizer — cross-corpus answer generation
+```
+
+---
+
+## What's Next — Phase 3 Preview
+
+Phase 3 is where FinOps Sentinel becomes genuinely unique. We build the LangGraph multi-agent system:
+```
+User Query
+    |
+    v
+QueryClassifier (GPT-4o-mini)
+    |
+    |-- CODE -------> CodeAnalyzer Agent
+    |                      |
+    |-- COMPLIANCE --> ComplianceMapper Agent
+    |                      |
+    |-- HYBRID -----> Both Agents --> HybridSynthesizer
+                                          |
+                                          v
+                                    Final Answer
+                               (with dual citations)
