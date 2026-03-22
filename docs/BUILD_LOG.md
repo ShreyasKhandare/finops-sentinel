@@ -151,3 +151,35 @@ QueryClassifier (GPT-4o-mini)
                                           v
                                     Final Answer
                                (with dual citations)
+
+                               ## Session 004 — 22 March 2026
+
+**Phase:** Phase 3 — LangGraph Multi-Agent
+**Branch:** phase/3-multi-agent
+
+### Work Completed
+- Created agents/state.py — AgentState TypedDict schema
+- Created agents/query_classifier.py — GPT-4o-mini classifier
+  with structured JSON output, 3-way routing
+- Created agents/compliance_mapper.py — compliance retrieval node
+- Created agents/graph.py — full LangGraph StateGraph with
+  conditional edges, compiled and tested
+- Updated Streamlit UI to use agent graph instead of direct retrieval
+- Tested all 3 routing paths — 95% confidence on all
+
+### Routing Accuracy Test Results
+- COMPLIANCE queries: correctly routed ✅
+- CODE queries: correctly routed ✅  
+- HYBRID queries: correctly routed ✅
+- Confidence: 95% on all test queries
+
+### Architecture
+QueryClassifier -> route_query (conditional edge)
+  -> compliance_mapper -> format_response -> END
+
+### Next Session: Phase 4
+- FastAPI backend (api/main.py)
+- Code corpus ingestion (ingestion/code_ingestor.py)
+- CodeAnalyzer agent node
+- Docker containerization
+- Deploy to Render
