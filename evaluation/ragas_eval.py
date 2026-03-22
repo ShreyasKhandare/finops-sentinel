@@ -141,8 +141,11 @@ def run_evaluation(phase_label: str = "phase2_baseline") -> dict:
     for i, item in enumerate(EVAL_QUESTIONS):
         logger.info(f"Processing question {i+1}/{len(EVAL_QUESTIONS)}: {item['question'][:60]}...")
 
-        # Retrieve chunks
-        results = query_compliance(item["question"], collection, n_results=5)
+        # NEW — hybrid + reranking
+        from retrieval.hybrid_retriever import HybridRetrieverWithRerank
+        if 'hybrid_retriever' not in dir():
+            hybrid_retriever = HybridRetrieverWithRerank(collection)
+        results = hybrid_retriever.search(item["question"], n_results=5)
         retrieved_contexts = [r["text"] for r in results]
 
         # Generate answer
@@ -236,6 +239,6 @@ def run_evaluation(phase_label: str = "phase2_baseline") -> dict:
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    scores = run_evaluation("phase1_baseline")
+    scores = run_evaluation("phase2_hybrid_rerank")
     print("\nPhase 1 baseline established. Run again after Phase 2")
     print("improvements to measure the delta.")
