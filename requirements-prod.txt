@@ -5,23 +5,23 @@ langchain-openai==0.2.9
 langgraph==0.2.45
 langsmith==0.1.147
 
-# Document Ingestion
-pymupdf==1.24.9
-
 # Vector Store
 chromadb==0.5.15
 
-# Embeddings
-sentence-transformers==3.2.1
+# Embeddings — OpenAI instead of local sentence-transformers
+# (saves 1.5GB of torch/transformers)
+openai==1.40.0
 
 # Retrieval
 rank-bm25==0.2.2
-flashrank==0.2.10
 cohere==5.13.12
+
+# Document Ingestion
+pymupdf==1.24.9
 
 # Backend
 fastapi==0.115.4
-uvicorn==0.32.0
+uvicorn[standard]==0.32.0
 pydantic==2.9.2
 
 # Utilities

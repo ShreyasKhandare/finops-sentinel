@@ -98,16 +98,36 @@ class MetricsResponse(BaseModel):
 
 
 # ── STARTUP — load resources once ────────────────────────────────────────────
+# ── STARTUP — load resources once ────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_event():
-    """Load agent graph and corpus on startup."""
+    """Load agent graph and corpus on startup. Auto-ingest if corpus empty."""
     logger.info("FinOps Sentinel API starting up...")
     try:
         from agents.graph import get_graph
-        from ingestion.compliance_ingestor import get_chroma_collection
+        from ingestion.compliance_ingestor import get_chroma_collection, ingest_pdf
+
+        collection = get_chroma_collection()
+
+        # Auto-ingest PDFs if corpus is empty (first deploy on Render)
+        if collection.count() == 0:
+            logger.info("Corpus empty — running auto-ingestion...")
+            pdf_dir = Path("evaluation/test_datasets")
+            pdfs = list(pdf_dir.glob("*.pdf"))
+            if pdfs:
+                for pdf in pdfs:
+                    logger.info(f"Ingesting {pdf.name}...")
+                    ingest_pdf(pdf, collection)
+                logger.success(f"Auto-ingestion complete — {collection.count()} chunks")
+            else:
+                logger.warning("No PDFs found in evaluation/test_datasets/")
+        else:
+            logger.info(f"Corpus ready — {collection.count()} existing chunks")
+
         app.state.graph = get_graph()
-        app.state.collection = get_chroma_collection()
-        logger.success("Agent graph and corpus loaded successfully")
+        app.state.collection = collection
+        logger.success("FinOps Sentinel API ready")
+
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         raise
