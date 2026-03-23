@@ -98,18 +98,29 @@ class MetricsResponse(BaseModel):
 
 
 # ── STARTUP — load resources once ────────────────────────────────────────────
-# ── STARTUP — load resources once ────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_event():
-    """Load agent graph and corpus on startup. Auto-ingest if corpus empty."""
+    """Bind port immediately, load resources in background."""
+    import asyncio
+
     logger.info("FinOps Sentinel API starting up...")
+    # Run heavy initialization in background so port binds immediately
+    asyncio.create_task(initialize_resources())
+
+
+async def initialize_resources():
+    """Heavy initialization runs after port is bound."""
+    import asyncio
+
     try:
         from agents.graph import get_graph
         from ingestion.compliance_ingestor import get_chroma_collection, ingest_pdf
 
+        # Small delay to ensure server is fully bound
+        await asyncio.sleep(2)
+
         collection = get_chroma_collection()
 
-        # Auto-ingest PDFs if corpus is empty (first deploy on Render)
         if collection.count() == 0:
             logger.info("Corpus empty — running auto-ingestion...")
             pdf_dir = Path("evaluation/test_datasets")
@@ -126,11 +137,10 @@ async def startup_event():
 
         app.state.graph = get_graph()
         app.state.collection = collection
-        logger.success("FinOps Sentinel API ready")
+        logger.success("FinOps Sentinel API fully ready")
 
     except Exception as e:
-        logger.error(f"Startup failed: {e}")
-        raise
+        logger.error(f"Resource initialization failed: {e}")
 
 
 # ── ENDPOINTS ─────────────────────────────────────────────────────────────────
@@ -196,6 +206,12 @@ async def query_endpoint(request: QueryRequest):
     Routes through LangGraph:
     QueryClassifier -> ComplianceMapper -> FormatResponse
     """
+    if not hasattr(app.state, "graph") or app.state.graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail="System initializing — please retry in 60 seconds",
+        )
+
     start_time = time.time()
     logger.info(f"Query received: '{request.query[:60]}...'")
 
