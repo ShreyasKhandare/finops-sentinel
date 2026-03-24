@@ -22,15 +22,25 @@ class BM25Index:
         self.documents = all_docs["documents"]
         self.metadatas = all_docs["metadatas"]
         self.ids = all_docs["ids"]
+
+        if not self.documents:
+            logger.warning("BM25: empty corpus — index disabled")
+            self.bm25 = None
+            return
+
         tokenised = [doc.lower().split() for doc in self.documents]
         self.bm25 = BM25Okapi(tokenised)
         logger.success(f"BM25 index built — {len(self.documents)} documents")
 
     def search(self, query: str, n_results: int = 20) -> list[dict]:
+        if not self.bm25 or not self.documents:
+            return []
+
         import numpy as np
         tokenised_query = query.lower().split()
         scores = self.bm25.get_scores(tokenised_query)
         top_indices = np.argsort(scores)[::-1][:n_results]
+
         results = []
         for rank, idx in enumerate(top_indices):
             results.append({
@@ -71,7 +81,6 @@ def reciprocal_rank_fusion(
     for doc_id in sorted_ids[:top_n]:
         result = result_map[doc_id].copy()
         result["rrf_score"] = round(scores[doc_id], 6)
-        # Ensure distance field always exists
         if "distance" not in result:
             result["distance"] = 0.5
         fused.append(result)
@@ -144,7 +153,6 @@ class HybridRetrieverWithRerank(HybridRetriever):
         vector_candidates: int = 30,
     ) -> list[dict]:
 
-        # Get fused candidates
         try:
             fused = super().search(
                 query,
@@ -157,7 +165,7 @@ class HybridRetrieverWithRerank(HybridRetriever):
             fused = []
 
         if not fused:
-            # Last resort: pure vector search
+            # Fallback: pure vector search
             try:
                 vector_raw = self.collection.query(
                     query_texts=[query],
@@ -196,7 +204,6 @@ class HybridRetrieverWithRerank(HybridRetriever):
 
         except Exception as e:
             logger.warning(f"Cohere reranking failed: {e} — using RRF order")
-            # Ensure all results have distance field
             for r in fused:
                 if "distance" not in r:
                     r["distance"] = 0.5

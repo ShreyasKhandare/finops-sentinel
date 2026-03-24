@@ -14,8 +14,6 @@ load_dotenv()
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from agents.graph import get_graph
-
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="FinOps Sentinel",
@@ -24,12 +22,34 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── LOAD GRAPH ONCE ───────────────────────────────────────────────────────────
+# ── LOAD RESOURCES ONCE ───────────────────────────────────────────────────────
 @st.cache_resource
-def load_agent_graph():
-    return get_graph()
+def load_resources():
+    """Load corpus, auto-ingest if empty, build retriever, compile graph."""
+    from ingestion.compliance_ingestor import get_chroma_collection, ingest_pdf
+    from retrieval.hybrid_retriever import HybridRetrieverWithRerank
+    from agents.graph import get_graph
 
-graph = load_agent_graph()
+    # Load collection
+    collection = get_chroma_collection()
+
+    # Auto-ingest if corpus is empty (first deploy on Streamlit Cloud)
+    if collection.count() == 0:
+        pdf_dir = Path("evaluation/test_datasets")
+        pdfs = list(pdf_dir.glob("*.pdf"))
+        if pdfs:
+            for pdf in pdfs:
+                ingest_pdf(pdf, collection)
+
+    # Build retriever
+    retriever = HybridRetrieverWithRerank(collection)
+
+    # Compile agent graph
+    graph = get_graph()
+
+    return collection, retriever, graph
+
+collection, retriever, graph = load_resources()
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -40,7 +60,7 @@ with st.sidebar:
     st.markdown("### System Status")
     st.success("LangGraph Agent: Active")
     st.metric("Corpus", "PCI-DSS v4.0.1")
-    st.metric("Chunks", "413")
+    st.metric("Chunks", collection.count())
     st.metric("Retrieval", "Hybrid + Rerank")
     st.metric("Phase", "3 - Multi-Agent")
 
@@ -96,7 +116,7 @@ with col2:
 # ── RESULTS ───────────────────────────────────────────────────────────────────
 if search_btn and query.strip():
 
-    with st.spinner("Running agent pipeline..."):
+    with st.spinner("Running agent pipeline... (first query may take 60 seconds while corpus loads)"):
         try:
             result = graph.invoke({"query": query})
         except Exception as e:
@@ -119,9 +139,8 @@ if search_btn and query.strip():
             confidence = result.get("confidence", 0)
             st.markdown(f"**Confidence:** {confidence:.0%}")
         with col_r3:
-            st.markdown(f"**Agents run:** QueryClassifier + ComplianceMapper")
+            st.markdown("**Agents run:** QueryClassifier + ComplianceMapper")
 
-        # Routing reason expander
         with st.expander("Routing decision"):
             st.caption(result.get("routing_reason", ""))
 
@@ -161,8 +180,8 @@ else:
             st.info("Step 3: Hybrid retrieval + LLM analysis")
 
         st.divider()
-        st.markdown("**Phase 3 adds:** LangGraph multi-agent orchestration")
-        st.markdown("**Corpus:** PCI-DSS v4.0.1 - 413 chunks")
+        st.markdown("**Phase 3:** LangGraph multi-agent orchestration")
+        st.markdown("**Corpus:** PCI-DSS v4.0.1")
         st.markdown("**Pipeline:** QueryClassifier -> ComplianceMapper -> FormatResponse")
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
