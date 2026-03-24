@@ -10,7 +10,7 @@ chromadb==0.5.15
 
 # Embeddings — OpenAI instead of local sentence-transformers
 # (saves 1.5GB of torch/transformers)
-openai==1.40.0
+openai>=1.54.0
 
 # Retrieval
 rank-bm25==0.2.2
