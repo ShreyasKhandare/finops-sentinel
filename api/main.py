@@ -1,12 +1,6 @@
 """
 FinOps Sentinel - FastAPI Backend
-Phase 4: Production API layer replacing direct Streamlit calls
-
-Endpoints:
-    POST /query     - Run agent graph on a query
-    GET  /health    - Health check
-    GET  /metrics   - System metrics
-    GET  /corpus    - Corpus status
+Phase 4: Production API
 """
 
 import sys
@@ -14,10 +8,11 @@ import os
 import time
 from pathlib import Path
 from datetime import datetime
+from contextlib import asynccontextmanager
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from loguru import logger
@@ -25,16 +20,43 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── APP SETUP ─────────────────────────────────────────────────────────────────
+# ── GLOBAL STATE ──────────────────────────────────────────────────────────────
+graph = None
+collection = None
+
+
+# ── LIFESPAN ──────────────────────────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize resources on startup."""
+    global graph, collection
+    logger.info("Starting up...")
+
+    try:
+        from ingestion.compliance_ingestor import get_chroma_collection
+        collection = get_chroma_collection()
+        logger.info(f"Collection loaded: {collection.count()} chunks")
+
+        from agents.graph import get_graph
+        graph = get_graph()
+        logger.info("Graph loaded")
+
+    except Exception as e:
+        logger.error(f"Startup error: {e}")
+
+    yield
+
+    logger.info("Shutting down...")
+
+
+# ── APP ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="FinOps Sentinel API",
     description="Dual-corpus RAG + multi-agent system for FinTech compliance",
     version="0.4.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
-# CORS — allows Streamlit and future frontend to call this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,21 +65,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── REQUEST / RESPONSE SCHEMAS ────────────────────────────────────────────────
+
+# ── SCHEMAS ───────────────────────────────────────────────────────────────────
 class QueryRequest(BaseModel):
-    query: str = Field(
-        ...,
-        min_length=3,
-        max_length=500,
-        description="Natural language compliance or code question",
-        example="What are the PCI-DSS requirements for password security?",
-    )
-    n_results: int = Field(
-        default=5,
-        ge=1,
-        le=10,
-        description="Number of source chunks to retrieve",
-    )
+    query: str = Field(..., min_length=3, max_length=500)
+    n_results: int = Field(default=5, ge=1, le=10)
 
 
 class SourceChunk(BaseModel):
@@ -78,164 +90,76 @@ class QueryResponse(BaseModel):
     timestamp: str
 
 
-class HealthResponse(BaseModel):
-    status: str
-    version: str
-    timestamp: str
-    corpus_chunks: int
-    agent_graph: str
-
-
-class MetricsResponse(BaseModel):
-    phase: str
-    faithfulness: float
-    answer_relevancy: float
-    context_precision: float
-    context_recall: float
-    corpus_chunks: int
-    embedding_model: str
-    retrieval_strategy: str
-
-
-# ── STARTUP — load resources once ────────────────────────────────────────────
-@app.on_event("startup")
-async def startup_event():
-    """Bind port immediately, load resources in background."""
-    import asyncio
-
-    logger.info("FinOps Sentinel API starting up...")
-    # Run heavy initialization in background so port binds immediately
-    asyncio.create_task(initialize_resources())
-
-
-async def initialize_resources():
-    """Heavy initialization runs after port is bound."""
-    import asyncio
-
-    try:
-        from agents.graph import get_graph
-        from ingestion.compliance_ingestor import get_chroma_collection, ingest_pdf
-
-        # Small delay to ensure server is fully bound
-        await asyncio.sleep(2)
-
-        collection = get_chroma_collection()
-
-        if collection.count() == 0:
-            logger.info("Corpus empty — running auto-ingestion...")
-            pdf_dir = Path("evaluation/test_datasets")
-            pdfs = list(pdf_dir.glob("*.pdf"))
-            if pdfs:
-                for pdf in pdfs:
-                    logger.info(f"Ingesting {pdf.name}...")
-                    ingest_pdf(pdf, collection)
-                logger.success(f"Auto-ingestion complete — {collection.count()} chunks")
-            else:
-                logger.warning("No PDFs found in evaluation/test_datasets/")
-        else:
-            logger.info(f"Corpus ready — {collection.count()} existing chunks")
-
-        app.state.graph = get_graph()
-        app.state.collection = collection
-        logger.success("FinOps Sentinel API fully ready")
-
-    except Exception as e:
-        logger.error(f"Resource initialization failed: {e}")
-
-
 # ── ENDPOINTS ─────────────────────────────────────────────────────────────────
-@app.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Check API health and system status."""
+@app.get("/")
+async def root():
+    return {
+        "name": "FinOps Sentinel API",
+        "version": "0.4.0",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
+@app.get("/health")
+async def health():
+    chunk_count = 0
     try:
-        chunk_count = app.state.collection.count()
-        graph_status = "active" if app.state.graph else "inactive"
+        if collection:
+            chunk_count = collection.count()
     except Exception:
-        chunk_count = 0
-        graph_status = "error"
+        pass
 
-    return HealthResponse(
-        status="healthy",
-        version="0.4.0",
-        timestamp=datetime.now().isoformat(),
-        corpus_chunks=chunk_count,
-        agent_graph=graph_status,
-    )
-
-
-@app.get("/metrics", response_model=MetricsResponse)
-async def get_metrics():
-    """Return latest RAGAS evaluation metrics."""
-    return MetricsResponse(
-        phase="Phase 2 - Hybrid RAG with Cohere Rerank",
-        faithfulness=1.0,
-        answer_relevancy=0.8773,
-        context_precision=0.9599,
-        context_recall=0.7604,
-        corpus_chunks=413,
-        embedding_model="all-MiniLM-L6-v2",
-        retrieval_strategy="BM25 + Vector + Cohere Rerank v3",
-    )
+    return {
+        "status": "healthy",
+        "version": "0.4.0",
+        "timestamp": datetime.now().isoformat(),
+        "corpus_chunks": chunk_count,
+        "agent_graph": "active" if graph else "loading",
+    }
 
 
-@app.get("/corpus")
-async def corpus_status():
-    """Return corpus information."""
-    try:
-        count = app.state.collection.count()
-        return {
-            "status": "ready",
-            "collections": [
-                {
-                    "name": "compliance",
-                    "chunks": count,
-                    "documents": ["PCI-DSS v4.0.1"],
-                    "embedding_model": "all-MiniLM-L6-v2",
-                }
-            ],
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/metrics")
+async def metrics():
+    return {
+        "phase": "Phase 2 - Hybrid RAG with Cohere Rerank",
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8773,
+        "context_precision": 0.9599,
+        "context_recall": 0.7604,
+        "corpus_chunks": 413,
+        "embedding_model": "all-MiniLM-L6-v2",
+        "retrieval_strategy": "BM25 + Vector + Cohere Rerank v3",
+    }
 
 
 @app.post("/query", response_model=QueryResponse)
 async def query_endpoint(request: QueryRequest):
-    """
-    Run the full agent pipeline on a query.
-
-    Routes through LangGraph:
-    QueryClassifier -> ComplianceMapper -> FormatResponse
-    """
-    if not hasattr(app.state, "graph") or app.state.graph is None:
+    if graph is None:
         raise HTTPException(
             status_code=503,
-            detail="System initializing — please retry in 60 seconds",
+            detail="System still initializing. Please retry in 30 seconds."
         )
 
     start_time = time.time()
-    logger.info(f"Query received: '{request.query[:60]}...'")
+    logger.info(f"Query: '{request.query[:60]}'")
 
     try:
-        # Run agent graph
-        result = app.state.graph.invoke({
-            "query": request.query,
-        })
+        result = graph.invoke({"query": request.query})
 
-        # Extract results
         compliance_results = result.get("compliance_results", [])
-
-        # Build source chunks
-        sources = []
-        for r in compliance_results[:request.n_results]:
-            sources.append(SourceChunk(
+        sources = [
+            SourceChunk(
                 source=r.get("source", "unknown"),
                 page=r.get("page", 0),
                 text=r.get("text", "")[:500],
                 distance=r.get("distance", 1.0),
-            ))
+            )
+            for r in compliance_results[:request.n_results]
+        ]
 
         latency_ms = round((time.time() - start_time) * 1000, 2)
-        logger.success(f"Query complete in {latency_ms}ms")
 
         return QueryResponse(
             query=request.query,
