@@ -93,27 +93,27 @@ def get_chroma_collection(chroma_path: Path = CHROMA_PATH) -> chromadb.Collectio
     chroma_path.mkdir(exist_ok=True)
     client = chromadb.PersistentClient(path=str(chroma_path))
 
-    # Use OpenAI embeddings in production, local in development
     if os.getenv("ENVIRONMENT") == "production":
         from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
         embedding_fn = OpenAIEmbeddingFunction(
             api_key=os.getenv("OPENAI_API_KEY"),
             model_name="text-embedding-3-small",
         )
+        logger.info("Using OpenAI embeddings (production)")
     else:
         from chromadb.utils import embedding_functions
         embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name="all-MiniLM-L6-v2"
         )
+        logger.info("Using local sentence-transformers (development)")
 
     collection = client.get_or_create_collection(
         name=COLLECTION_NAME,
         embedding_function=embedding_fn,
         metadata={"description": "Financial regulatory compliance documents"},
     )
-    logger.info(f"Chroma collection '{COLLECTION_NAME}' ready — {collection.count()} existing docs")
+    logger.info(f"Chroma collection ready — {collection.count()} chunks")
     return collection
-
 
 # ── MAIN INGESTION ────────────────────────────────────────────────────────────
 def ingest_pdf(
