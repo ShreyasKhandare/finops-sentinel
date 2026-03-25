@@ -315,6 +315,33 @@ python ingestion/compliance_ingestor.py
 ```
 
 ---
+## Regression Test Results
+
+Automated regression suite (`tests/regression_test.py`) — 8 test cases covering
+routing accuracy, answer content, and edge cases.
+
+**Latest run:** 24 March 2026
+
+| Test | Query | Expected Route | Actual Route | Confidence | Pass |
+|------|-------|---------------|--------------|------------|------|
+| 1 | Minimum password length | COMPLIANCE | COMPLIANCE | 100% | ✅ |
+| 2 | Audit log retention | COMPLIANCE | COMPLIANCE | 90% | ✅ |
+| 3 | Encryption for transmission | COMPLIANCE | COMPLIANCE | 90% | ✅ |
+| 4 | Vulnerability scan frequency | COMPLIANCE | COMPLIANCE | 90% | ✅ |
+| 5 | MFA requirements | COMPLIANCE | COMPLIANCE | 90% | ✅ |
+| 6 | Payment processing functions | CODE | CODE | 100% | ✅ |
+| 7 | Auth code vs PCI-DSS Req 8 | HYBRID | HYBRID | 100% | ✅ |
+| 8 | Off-topic query (weather) | COMPLIANCE | COMPLIANCE | 10% | ⚠️ |
+
+**Score: 7/8 (87.5%)** — Test 8 routes correctly with low confidence (10%)
+but returns compliance content instead of an explicit out-of-scope message.
+Acceptable behavior for a compliance-focused system.
+
+### Routing Accuracy Breakdown
+- COMPLIANCE queries: 5/5 correct (100%)
+- CODE queries: 1/1 correct (100%)
+- HYBRID queries: 1/1 correct (100%)
+- Off-topic queries: routes correctly, content handling in progress
 
 ## Design Decisions Worth Explaining
 
