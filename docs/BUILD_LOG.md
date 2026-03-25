@@ -183,3 +183,40 @@ QueryClassifier -> route_query (conditional edge)
 - CodeAnalyzer agent node
 - Docker containerization
 - Deploy to Render
+
+## Session 005 — 24 March 2026
+
+**Phase:** Phase 4 — Production Deployment
+**Status:** COMPLETE ✅
+
+### Live URLs
+- Visual Demo: https://shreyas-finops-sentinel.streamlit.app
+- API: https://finops-sentinel.onrender.com
+- API Docs: https://finops-sentinel.onrender.com/docs
+- Metrics: https://finops-sentinel.onrender.com/metrics
+
+### Work Completed
+- FastAPI backend deployed on Render
+- Streamlit UI deployed on Streamlit Cloud
+- Fixed Python 3.14 issue with runtime.txt
+- Fixed OOM with slim requirements-prod.txt
+- Fixed port binding with lifespan context manager
+- Fixed empty corpus with auto-ingest on startup
+- Fixed BM25 division by zero on empty corpus
+- Fixed OpenAI API key placeholders in Streamlit secrets
+- Rotated all exposed API keys
+
+### Deployment Issues & Fixes
+- Python 3.14 incompatibility: runtime.txt + .python-version
+- Render OOM 512MB: removed torch from requirements-prod.txt
+- Port binding timeout: switched to lifespan context manager
+- openai version conflict: changed to >=1.54.0
+- Empty corpus on cloud: auto-ingest PDF on first startup
+- BM25 division by zero: empty corpus guard added
+- API keys exposed in chat: rotated all 5 keys immediately
+
+### Final Status
+- Phase 1: ✅ Basic RAG + Streamlit UI
+- Phase 2: ✅ Hybrid BM25+Vector+Cohere Rerank, RAGAS 1.0
+- Phase 3: ✅ LangGraph multi-agent, 95% routing accuracy
+- Phase 4: ✅ FastAPI + Docker + Live deployment
