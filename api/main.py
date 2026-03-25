@@ -26,26 +26,59 @@ collection = None
 
 
 # ── LIFESPAN ──────────────────────────────────────────────────────────────────
+async def initialize_resources(app: FastAPI) -> None:
+    import asyncio
+
+    global graph, collection
+    try:
+        from agents.graph import get_graph
+        from ingestion.compliance_ingestor import get_chroma_collection, ingest_pdf
+
+        await asyncio.sleep(2)
+
+        collection = get_chroma_collection()
+        logger.info(f"Corpus has {collection.count()} chunks")
+
+        if collection.count() == 0:
+            logger.info("Searching for PDFs...")
+            # Try multiple possible paths
+            search_paths = [
+                Path("evaluation/test_datasets"),
+                Path("/app/evaluation/test_datasets"),
+                Path("test_datasets"),
+            ]
+            pdfs = []
+            for p in search_paths:
+                logger.info(f"Checking {p} — exists: {p.exists()}")
+                pdfs = list(p.glob("*.pdf"))
+                if pdfs:
+                    logger.info(f"Found {len(pdfs)} PDFs in {p}")
+                    break
+
+            if pdfs:
+                for pdf in pdfs:
+                    logger.info(f"Ingesting {pdf.name}...")
+                    ingest_pdf(pdf, collection)
+                logger.success(f"Ingested {collection.count()} chunks")
+            else:
+                logger.error("No PDFs found in any search path")
+
+        app.state.graph = get_graph()
+        app.state.collection = collection
+        graph = app.state.graph
+        collection = app.state.collection
+        logger.success("API fully ready")
+
+    except Exception as e:
+        logger.error(f"Init failed: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup."""
-    global graph, collection
     logger.info("Starting up...")
-
-    try:
-        from ingestion.compliance_ingestor import get_chroma_collection
-        collection = get_chroma_collection()
-        logger.info(f"Collection loaded: {collection.count()} chunks")
-
-        from agents.graph import get_graph
-        graph = get_graph()
-        logger.info("Graph loaded")
-
-    except Exception as e:
-        logger.error(f"Startup error: {e}")
-
+    await initialize_resources(app)
     yield
-
     logger.info("Shutting down...")
 
 
