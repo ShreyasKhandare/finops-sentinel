@@ -39,6 +39,9 @@ KEY OBLIGATIONS:
 
 SOURCES: Page X, Page Y, Page Z"""
 
+# Confidence below this threshold = off-topic query
+OFF_TOPIC_THRESHOLD = 0.15
+
 
 # ── LANGGRAPH NODE ────────────────────────────────────────────────────────────
 def compliance_mapper_node(state: dict) -> dict:
@@ -46,7 +49,22 @@ def compliance_mapper_node(state: dict) -> dict:
     LangGraph node: retrieves compliance chunks and generates analysis.
     """
     query = state["query"]
+    confidence = state.get("confidence", 1.0)
     logger.info(f"ComplianceMapper: processing '{query[:60]}...'")
+
+    # Off-topic guard — low confidence means classifier flagged this as unrelated
+    if confidence <= OFF_TOPIC_THRESHOLD:
+        logger.info(f"ComplianceMapper: off-topic query detected (confidence={confidence})")
+        return {
+            **state,
+            "compliance_results": [],
+            "compliance_analysis": (
+                "This query does not appear to be related to financial compliance "
+                "or software engineering. FinOps Sentinel is designed to answer "
+                "questions about PCI-DSS requirements and FinTech codebases. "
+                "Try asking something like: 'What are the PCI-DSS password requirements?'"
+            ),
+        }
 
     try:
         from ingestion.compliance_ingestor import get_chroma_collection
@@ -68,7 +86,7 @@ def compliance_mapper_node(state: dict) -> dict:
                 "page": r.get("page", 0),
                 "distance": float(r.get("distance", 0.5)),
             }
-            if safe_r["text"]:  # only include non-empty chunks
+            if safe_r["text"]:
                 safe_results.append(safe_r)
 
         if not safe_results:
@@ -118,6 +136,9 @@ def compliance_mapper_node(state: dict) -> dict:
         return {
             **state,
             "compliance_results": [],
-            "compliance_analysis": f"Compliance analysis failed: {e}",
+            "compliance_analysis": (
+                "I was unable to retrieve compliance information at this time. "
+                "Please try again in a few seconds."
+            ),
             "error": str(e),
         }

@@ -49,7 +49,11 @@ Examples:
 - "Does our authentication code meet PCI-DSS password requirements?"
 - "What code changes does DORA Article 9 require?"
 
-Return your classification as JSON with fields:
+IMPORTANT: If the query is completely unrelated to finance, compliance, or software
+(e.g. weather, sports, cooking), classify it as COMPLIANCE with low confidence (0.1).
+The system will handle out-of-scope queries gracefully.
+
+Return JSON with fields:
 - corpus: "code", "compliance", or "hybrid"
 - confidence: float between 0.0 and 1.0
 - reason: one sentence explaining the routing decision"""

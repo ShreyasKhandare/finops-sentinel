@@ -1,0 +1,102 @@
+{
+  "timestamp": "2026-03-24T20:00:38.104456",
+  "total": 8,
+  "passed": 7,
+  "failed": 1,
+  "score_pct": 87.5,
+  "tests": [
+    {
+      "query": "What is the minimum password length required by PCI-DSS?",
+      "expected_corpus": "compliance",
+      "actual_corpus": "compliance",
+      "routing_pass": true,
+      "confidence": 1.0,
+      "confidence_pass": true,
+      "content_pass": true,
+      "missing_terms": [],
+      "overall_pass": true
+    },
+    {
+      "query": "How long must audit logs be retained?",
+      "expected_corpus": "compliance",
+      "actual_corpus": "compliance",
+      "routing_pass": true,
+      "confidence": 0.9,
+      "confidence_pass": true,
+      "content_pass": true,
+      "missing_terms": [],
+      "overall_pass": true
+    },
+    {
+      "query": "What encryption is required for cardholder data transmission?",
+      "expected_corpus": "compliance",
+      "actual_corpus": "compliance",
+      "routing_pass": true,
+      "confidence": 0.9,
+      "confidence_pass": true,
+      "content_pass": true,
+      "missing_terms": [],
+      "overall_pass": true
+    },
+    {
+      "query": "How often must vulnerability scans be performed?",
+      "expected_corpus": "compliance",
+      "actual_corpus": "compliance",
+      "routing_pass": true,
+      "confidence": 0.9,
+      "confidence_pass": true,
+      "content_pass": true,
+      "missing_terms": [],
+      "overall_pass": true
+    },
+    {
+      "query": "What are the multi-factor authentication requirements?",
+      "expected_corpus": "compliance",
+      "actual_corpus": "compliance",
+      "routing_pass": true,
+      "confidence": 0.9,
+      "confidence_pass": true,
+      "content_pass": true,
+      "missing_terms": [],
+      "overall_pass": true
+    },
+    {
+      "query": "Which functions handle payment processing?",
+      "expected_corpus": "code",
+      "actual_corpus": "code",
+      "routing_pass": true,
+      "confidence": 1.0,
+      "confidence_pass": true,
+      "content_pass": true,
+      "missing_terms": [],
+      "overall_pass": true
+    },
+    {
+      "query": "Does our authentication code meet PCI-DSS Requirement 8?",
+      "expected_corpus": "hybrid",
+      "actual_corpus": "hybrid",
+      "routing_pass": true,
+      "confidence": 1.0,
+      "confidence_pass": true,
+      "content_pass": true,
+      "missing_terms": [],
+      "overall_pass": true
+    },
+    {
+      "query": "What is the weather today?",
+      "expected_corpus": "compliance",
+      "actual_corpus": "compliance",
+      "routing_pass": true,
+      "confidence": 0.1,
+      "confidence_pass": true,
+      "content_pass": false,
+      "missing_terms": [
+        "cannot",
+        "not contain",
+        "insufficient",
+        "does not"
+      ],
+      "overall_pass": false
+    }
+  ]
+}
