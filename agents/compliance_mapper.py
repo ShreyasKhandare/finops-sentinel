@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from openai import OpenAI
+from anthropic import Anthropic
 from dotenv import load_dotenv
 from loguru import logger
 
