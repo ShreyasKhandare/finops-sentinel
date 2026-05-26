@@ -106,22 +106,23 @@ def compliance_mapper_node(state: dict) -> dict:
             for r in safe_results[:5]
         ])
 
-        # Generate analysis
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+
+# Generate analysis using Claude
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        
+        message = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=800,
+            system=COMPLIANCE_ANALYSIS_PROMPT,
             messages=[
-                {"role": "system", "content": COMPLIANCE_ANALYSIS_PROMPT},
                 {
                     "role": "user",
                     "content": f"Context:\n{context}\n\nQuery: {query}",
-                },
+                }
             ],
-            temperature=0.0,
-            max_tokens=600,
         )
 
-        analysis = response.choices[0].message.content
+        analysis = message.content[0].text
         logger.success("ComplianceMapper: analysis complete")
 
         return {
