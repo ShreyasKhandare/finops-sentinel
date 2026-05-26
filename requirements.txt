@@ -31,4 +31,4 @@ requests==2.32.3
 numpy==1.26.4
 
 streamlit==1.40.0
-starlette==0.37.0
+starlette==0.41.0
