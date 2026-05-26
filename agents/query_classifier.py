@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from openai import OpenAI
+from anthropic import Anthropic
 from dotenv import load_dotenv
 from loguru import logger
 from pydantic import BaseModel
@@ -62,7 +62,7 @@ Return JSON with fields:
 # ── CLASSIFIER FUNCTION ───────────────────────────────────────────────────────
 def classify_query(query: str) -> ClassificationResult:
     """
-    Classify a query as code, compliance, or hybrid.
+    Classify a query as code, compliance, or hybrid using Claude.
 
     Args:
         query: Natural language query from the user
@@ -70,21 +70,20 @@ def classify_query(query: str) -> ClassificationResult:
     Returns:
         ClassificationResult with corpus, confidence, reason
     """
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        message = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=200,
+            system=CLASSIFIER_SYSTEM_PROMPT,
             messages=[
-                {"role": "system", "content": CLASSIFIER_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Classify this query: {query}"},
+                {"role": "user", "content": f"Classify this query: {query}"}
             ],
-            temperature=0.0,
-            response_format={"type": "json_object"},
         )
 
         import json
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(message.content[0].text)
 
         # Validate corpus value
         if result.get("corpus") not in ["code", "compliance", "hybrid"]:
