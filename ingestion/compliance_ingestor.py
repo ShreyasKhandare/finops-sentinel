@@ -90,22 +90,16 @@ def parse_pdf(pdf_path: Path) -> list[dict]:
 
 # ── CHROMA SETUP ──────────────────────────────────────────────────────────────
 def get_chroma_collection(chroma_path: Path = CHROMA_PATH) -> chromadb.Collection:
+    """Initialize Chroma with local sentence-transformers embeddings (FREE)."""
     chroma_path.mkdir(exist_ok=True)
     client = chromadb.PersistentClient(path=str(chroma_path))
 
-    if os.getenv("ENVIRONMENT") == "production":
-        from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-        embedding_fn = OpenAIEmbeddingFunction(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            model_name="text-embedding-3-small",
-        )
-        logger.info("Using OpenAI embeddings (production)")
-    else:
-        from chromadb.utils import embedding_functions
-        embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
-        logger.info("Using local sentence-transformers (development)")
+    # Always use LOCAL embeddings - ZERO API cost (works on Cloud and locally)
+    from chromadb.utils import embedding_functions
+    embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-MiniLM-L6-v2"
+    )
+    logger.info("Using local sentence-transformers embeddings (FREE, no API calls)")
 
     collection = client.get_or_create_collection(
         name=COLLECTION_NAME,
