@@ -8,9 +8,11 @@ langsmith==0.1.147
 # Vector Store
 chromadb==0.5.15
 
-# Embeddings — OpenAI instead of local sentence-transformers
-# (saves 1.5GB of torch/transformers)
-openai>=1.54.0
+# Embeddings — Local instead of OpenAI 
+sentence-transformers==3.2.1
+
+# Claude API (replacing OpenAI)
+anthropic>=0.34.0
 
 # Retrieval
 rank-bm25==0.2.2
